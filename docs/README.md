@@ -1,169 +1,71 @@
-## 1️⃣ Root README.md (MANDATORY)
+# Flutter Product Management – Coding Test
 
-Create `/README.md`
-
-````md
-# Flutter Developer Coding Test – TonaireDigital
+This project is a full-stack Flutter application with a Node.js backend and SQL Server database.
+It was developed as part of the Flutter Developer Internship coding test.
 
 ## Project Structure
 /backend   - Node.js + Express API  
-/frontend  - Flutter application  
-/sql       - SQL Server schema & sample data  
+/frontend  - Flutter application (Android, iOS, Desktop)  
+/sql       - SQL Server schema and sample data  
 
-## Requirements
-- Node.js v18+
-- SQL Server
-- Flutter 3+
+## Features
+- JWT Authentication (Login, Sign Up, Forgot Password)
+- Category CRUD with Khmer & English search (debounced)
+- Product CRUD with:
+  - Pagination (20 items per page)
+  - Sorting by name or price
+  - Category filter
+  - Debounced search (Khmer supported)
+- Local image upload & display
+- Cross-platform Flutter support (Mobile & Desktop)
+
+---
 
 ## Backend Setup
+
+### Requirements
+- Node.js v18+
+- SQL Server
+
+### Steps
 ```bash
 cd backend
 npm install
 cp .env.example .env
 npm run dev
-````
 
-API runs on:
+Backend runs at:
 
-```
 http://localhost:3000
-```
 
-## Frontend Setup
+Frontend Setup
+Requirements
 
-```bash
+Flutter 3+
+
+Steps
 cd frontend
 flutter pub get
 flutter run
-```
 
-### Android Emulator Note
+Android Emulator Note
 
-Use:
+Use this base URL instead of localhost:
 
-```
 http://10.0.2.2:3000
-```
 
-instead of localhost.
+API Overview
 
-## Features
+POST /api/auth/login
 
-* JWT Authentication (Login, Signup, Forgot Password)
-* Category CRUD with Khmer & English search (debounced)
-* Product CRUD with pagination, sorting, filter
-* Local image storage
-* Cross-platform (Android, iOS, Desktop)
+POST /api/auth/signup
 
-````
+POST /api/auth/forgot-password
 
----
+GET /api/categories
 
-## 2️⃣ Backend README
+POST /api/categories
 
-Create `/backend/README.md`
+GET /api/products?page=1&limit=20
 
-Include:
-- Environment variables explanation
-- API list
-- Image upload endpoint
-
-Example:
-```md
-## API Endpoints
-
-POST /api/auth/login  
-POST /api/auth/signup  
-POST /api/auth/forgot-password  
-
-GET /api/categories  
-POST /api/categories  
-
-GET /api/products?page=1&limit=20  
-POST /api/upload  
-````
-
----
-
-## 3️⃣ SQL Scripts
-
-In `/sql/` include:
-
-* `schema.sql`
-* `sample_data.sql`
-
-This makes reviewers happy. Trust me.
-
----
-
-## 4️⃣ Git Final Check (CRITICAL)
-
-Before submission:
-
-```bash
-git status
-```
-
-Make sure:
-
-* ❌ No `.env`
-* ❌ No `node_modules`
-* ❌ No `build/`
-* ✅ Clean commits
-* ✅ One repository only
-
----
-
-# STEP 13: Video Demo (MAX 7 minutes)
-
-This matters more than UI beauty.
-
-## Suggested Flow (STRICT)
-
-1. **Intro (30 sec)**
-   “This is my Flutter test for TonaireDigital.”
-
-2. **Backend demo (1 min)**
-
-   * Show login API
-   * Show categories API
-   * Show products pagination
-
-3. **Flutter demo (4 min)**
-
-   * Login
-   * Category CRUD (Khmer search)
-   * Product list scroll
-   * Sorting
-   * Category filter
-   * Image loading
-   * Desktop view resize
-
-4. **Wrap up (30 sec)**
-   “All requirements are implemented.”
-
----
-
-# FINAL SUBMISSION CHECKLIST ✅
-
-✔ GitHub repo pushed
-✔ Only ONE submission
-✔ Backend runs
-✔ Flutter runs
-✔ Khmer search works
-✔ Pagination real (not fake)
-✔ Images load
-✔ README clear
-✔ Video under 7 min
-
----
-
-## ⚠️ Common LAST-MINUTE FAILS
-
-* Forgot Khmer COLLATE
-* Pagination loads same data
-* No debounce
-* Video too long
-* README missing
-
-
+POST /api/upload
