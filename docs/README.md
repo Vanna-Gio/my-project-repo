@@ -1,3 +1,6 @@
+
+
+````md
 # Flutter Product Management – Coding Test
 
 This project is a full-stack Flutter application with a Node.js backend and SQL Server database.
@@ -33,39 +36,50 @@ cd backend
 npm install
 cp .env.example .env
 npm run dev
+````
 
 Backend runs at:
 
+```
 http://localhost:3000
+```
 
-Frontend Setup
-Requirements
+---
 
-Flutter 3+
+## Frontend Setup
 
-Steps
+### Requirements
+
+* Flutter 3+
+
+### Steps
+
+```bash
 cd frontend
 flutter pub get
 flutter run
+```
 
-Android Emulator Note
+### Android Emulator Note
 
 Use this base URL instead of localhost:
 
+```
 http://10.0.2.2:3000
+```
 
-API Overview
+---
 
-POST /api/auth/login
+## API Overview
 
-POST /api/auth/signup
+* POST /api/auth/login
+* POST /api/auth/signup
+* POST /api/auth/forgot-password
+* GET /api/categories
+* POST /api/categories
+* GET /api/products?page=1&limit=20
+* POST /api/upload
 
-POST /api/auth/forgot-password
+---
 
-GET /api/categories
 
-POST /api/categories
-
-GET /api/products?page=1&limit=20
-
-POST /api/upload
