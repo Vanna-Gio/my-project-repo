@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/category.dart';
 import '../services/category_service.dart';
-
+import 'product_screen.dart';
+import 'login_screen.dart';
 class CategoryScreen extends StatefulWidget {
   @override
   State<CategoryScreen> createState() => _CategoryScreenState();
@@ -84,7 +87,29 @@ class _CategoryScreenState extends State<CategoryScreen> {
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => showForm(),
-          )
+          ),
+          IconButton(
+            icon: const Icon(Icons.shopping_bag),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ProductScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('token'); // Remove JWT
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => LoginScreen()),
+                (route) => false, // remove all previous routes
+              );
+            },
+          ),
+
         ],
       ),
       body: Column(
