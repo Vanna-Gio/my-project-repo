@@ -1,44 +1,47 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/category.dart';
-import '../services/category_service.dart';
+import '../providers/category_provider.dart';
 import 'product_screen.dart';
 import 'login_screen.dart';
+
 class CategoryScreen extends StatefulWidget {
   @override
-  State<CategoryScreen> createState() => _CategoryScreenState();
+  _CategoryScreenState createState() => _CategoryScreenState();
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  final CategoryService service = CategoryService();
-  final TextEditingController searchCtrl = TextEditingController();
-  Timer? debounce;
-
-  List<Category> categories = [];
-  bool loading = true;
+  late CategoryProvider _provider;
 
   @override
   void initState() {
     super.initState();
-    loadCategories('');
-  }
+    _provider = Provider.of<CategoryProvider>(context, listen: false);
+    _provider.fetchCategories('');
 
-  void loadCategories(String search) async {
-    setState(() => loading = true);
-    categories = await service.fetchCategories(search);
-    setState(() => loading = false);
-  }
-
-  void onSearchChanged(String value) {
-    if (debounce?.isActive ?? false) debounce!.cancel();
-    debounce = Timer(const Duration(milliseconds: 500), () {
-      loadCategories(value);
+    _provider.addListener(() {
+      if (_provider.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_provider.error!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (_provider.message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_provider.message!),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     });
   }
 
-  void showForm({Category? category}) {
+  void _showForm({Category? category}) {
     final nameCtrl = TextEditingController(text: category?.name);
     final descCtrl = TextEditingController(text: category?.description);
 
@@ -62,14 +65,13 @@ class _CategoryScreenState extends State<CategoryScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               if (category == null) {
-                await service.createCategory(nameCtrl.text, descCtrl.text);
+                _provider.createCategory(nameCtrl.text, descCtrl.text);
               } else {
-                await service.updateCategory(category.id, nameCtrl.text, descCtrl.text);
+                _provider.updateCategory(category.id, nameCtrl.text, descCtrl.text);
               }
               Navigator.pop(context);
-              loadCategories(searchCtrl.text);
             },
             child: const Text('Save'),
           )
@@ -86,7 +88,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => showForm(),
+            onPressed: _showForm,
           ),
           IconButton(
             icon: const Icon(Icons.shopping_bag),
@@ -101,15 +103,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('token'); // Remove JWT
+              await prefs.remove('token');
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => LoginScreen()),
-                (route) => false, // remove all previous routes
+                (route) => false,
               );
             },
           ),
-
         ],
       ),
       body: Column(
@@ -117,42 +118,43 @@ class _CategoryScreenState extends State<CategoryScreen> {
           Padding(
             padding: const EdgeInsets.all(8),
             child: TextField(
-              controller: searchCtrl,
               decoration: const InputDecoration(
                 hintText: 'Search (Khmer / English)',
               ),
-              onChanged: onSearchChanged,
+              onChanged: (value) => _provider.onSearch(value),
             ),
           ),
           Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    itemCount: categories.length,
-                    itemBuilder: (_, i) {
-                      final c = categories[i];
-                      return ListTile(
-                        title: Text(c.name),
-                        subtitle: Text(c.description),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              onPressed: () => showForm(category: c),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete),
-                              onPressed: () async {
-                                await service.deleteCategory(c.id);
-                                loadCategories(searchCtrl.text);
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+            child: Consumer<CategoryProvider>(
+              builder: (_, provider, __) {
+                if (provider.loading && provider.categories.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return ListView.builder(
+                  itemCount: provider.categories.length,
+                  itemBuilder: (_, i) {
+                    final c = provider.categories[i];
+                    return ListTile(
+                      title: Text(c.name),
+                      subtitle: Text(c.description),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _showForm(category: c),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => provider.deleteCategory(c.id),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           )
         ],
       ),

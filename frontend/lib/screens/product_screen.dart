@@ -1,184 +1,322 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import '../models/product.dart';
-import '../models/category.dart';
-import '../services/product_service.dart';
-import '../services/category_service.dart';
-import '../services/api_config.dart';
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+
+import '../models/category.dart';
+import '../models/product.dart';
+import '../providers/category_provider.dart';
+import '../providers/product_provider.dart';
+import '../services/api_config.dart';
 
 class ProductScreen extends StatefulWidget {
   @override
-  State<ProductScreen> createState() => _ProductScreenState();
+  _ProductScreenState createState() => _ProductScreenState();
 }
 
 class _ProductScreenState extends State<ProductScreen> {
-  final ProductService productService = ProductService();
-  final CategoryService categoryService = CategoryService();
-
-  List<Product> products = [];
-  List<Category> categories = [];
-
-  int page = 1;
-  bool loading = false;
-  bool hasMore = true;
-
-  String search = '';
-  String sortBy = 'name';
-  int? selectedCategoryId;
-
-  final searchCtrl = TextEditingController();
-  Timer? debounce;
-  final ScrollController scrollCtrl = ScrollController();
+  late ProductProvider _productProvider;
+  late CategoryProvider _categoryProvider;
+  final ScrollController _scrollCtrl = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    loadCategories();
-    loadProducts(reset: true);
+    _productProvider = Provider.of<ProductProvider>(context, listen: false);
+    _categoryProvider = Provider.of<CategoryProvider>(context, listen: false);
 
-    scrollCtrl.addListener(() {
-      if (scrollCtrl.position.pixels >=
-              scrollCtrl.position.maxScrollExtent - 100 &&
-          !loading &&
-          hasMore) {
-        loadProducts();
+    _productProvider.fetchProducts(reset: true);
+    _categoryProvider.fetchCategories('');
+
+    _scrollCtrl.addListener(() {
+      if (_scrollCtrl.position.pixels >=
+              _scrollCtrl.position.maxScrollExtent - 200 &&
+          !_productProvider.loading &&
+          _productProvider.hasMore) {
+        _productProvider.fetchProducts();
+      }
+    });
+
+    _productProvider.addListener(() {
+      if (_productProvider.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_productProvider.error!),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (_productProvider.message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_productProvider.message!),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     });
   }
 
-  Future<void> loadCategories() async {
-    categories = await categoryService.fetchCategories('');
-    setState(() {});
-  }
-
-  Future<void> loadProducts({bool reset = false}) async {
-    if (loading) return;
-
-    if (reset) {
-      page = 1;
-      products.clear();
-      hasMore = true;
-    }
-
-    setState(() => loading = true);
-
-    final newItems = await productService.fetchProducts(
-      page: page,
-      search: search,
-      sortBy: sortBy,
-      categoryId: selectedCategoryId,
+  void _showProductForm({Product? product}) {
+    showDialog(
+      context: context,
+      builder: (_) => ProductFormDialog(
+        product: product,
+        provider: _productProvider,
+      ),
     );
-
-    if (newItems.length < 20) hasMore = false;
-
-    products.addAll(newItems);
-    page++;
-
-    setState(() => loading = false);
-  }
-
-  void onSearchChanged(String value) {
-    if (debounce?.isActive ?? false) debounce!.cancel();
-    debounce = Timer(const Duration(milliseconds: 500), () {
-      search = value;
-      loadProducts(reset: true);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Products')),
+      appBar: AppBar(
+        title: const Text('Products'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showProductForm,
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          // Search and Filters
           Padding(
-            padding: const EdgeInsets.all(8),
-            child: TextField(
-              controller: searchCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Search products (Khmer / English)',
-              ),
-              onChanged: onSearchChanged,
-            ),
-          ),
-
-          // Filters
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
               children: [
-                DropdownButton<String>(
-                  value: sortBy,
-                  items: const [
-                    DropdownMenuItem(value: 'name', child: Text('Sort by Name')),
-                    DropdownMenuItem(value: 'price', child: Text('Sort by Price')),
-                  ],
-                  onChanged: (v) {
-                    sortBy = v!;
-                    loadProducts(reset: true);
-                  },
+                TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search products (Khmer / English)',
+                  ),
+                  onChanged: (value) => _productProvider.onSearch(value),
                 ),
-                const SizedBox(width: 16),
-                DropdownButton<int?>(
-                  value: selectedCategoryId,
-                  hint: const Text('Category'),
-                  items: [
-                    const DropdownMenuItem(value: null, child: Text('All')),
-                    ...categories.map(
-                      (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name),
+                Row(
+                  children: [
+                    // Sort By
+                    Consumer<ProductProvider>(
+                      builder: (context, provider, child) =>
+                          DropdownButton<String>(
+                        value: provider.sortBy,
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'name', child: Text('Sort by Name')),
+                          DropdownMenuItem(
+                              value: 'price',
+                              child: Text('Sort by Price')),
+                        ],
+                        onChanged: (v) => provider.setSort(v!),
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    // Category Filter
+                    Consumer<CategoryProvider>(
+                      builder: (context, catProvider, child) {
+                        return DropdownButton<int?>(
+                          hint: const Text('Category'),
+                          value: _productProvider.categoryId,
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('All'),
+                            ),
+                            ...catProvider.categories.map(
+                              (c) => DropdownMenuItem(
+                                value: c.id,
+                                child: Text(c.name),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) => _productProvider.setCategory(v),
+                        );
+                      },
+                    ),
                   ],
-                  onChanged: (v) {
-                    selectedCategoryId = v;
-                    loadProducts(reset: true);
-                  },
                 ),
               ],
             ),
           ),
-
+          // Product List
           Expanded(
-            child: ListView.builder(
-              controller: scrollCtrl,
-              itemCount: products.length + (loading ? 1 : 0),
-              itemBuilder: (_, i) {
-                if (i >= products.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
+            child: Consumer<ProductProvider>(
+              builder: (context, provider, child) {
+                if (provider.loading && provider.products.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
                 }
 
-                final p = products[i];
-                final imgUrl = p.imageUrl.isNotEmpty
-                    ? '${ApiConfig.imageBaseUrl}${p.imageUrl}'
-                    : null;
+                return ListView.builder(
+                  controller: _scrollCtrl,
+                  itemCount:
+                      provider.products.length + (provider.hasMore ? 1 : 0),
+                  itemBuilder: (context, i) {
+                    if (i >= provider.products.length) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                return ListTile(
-                  leading: imgUrl == null
-                      ? const Icon(Icons.image_not_supported)
-                      : CachedNetworkImage(
-                          imageUrl: imgUrl,
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) =>
-                              const CircularProgressIndicator(),
-                          errorWidget: (_, __, ___) =>
-                              const Icon(Icons.broken_image),
-                        ),
-                  title: Text(p.name),
-                  subtitle: Text('${p.categoryName} • \$${p.price}'),
+                    final p = provider.products[i];
+                    final imgUrl = p.imageUrl.isNotEmpty
+                        ? '${ApiConfig.imageBaseUrl}/${p.imageUrl}'
+                        : null;
+
+                    return ListTile(
+                      leading: imgUrl == null
+                          ? const Icon(Icons.image_not_supported)
+                          : CachedNetworkImage(
+                              imageUrl: imgUrl,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  const CircularProgressIndicator(),
+                              errorWidget: (context, url, error) =>
+                                  const Icon(Icons.broken_image),
+                            ),
+                      title: Text(p.name),
+                      subtitle: Text('${p.categoryName} • \$${p.price}'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () => _showProductForm(product: p),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => provider.deleteProduct(p.id),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 );
               },
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class ProductFormDialog extends StatefulWidget {
+  final Product? product;
+  final ProductProvider provider;
+
+  const ProductFormDialog({
+    Key? key,
+    this.product,
+    required this.provider,
+  }) : super(key: key);
+
+  @override
+  _ProductFormDialogState createState() => _ProductFormDialogState();
+}
+
+class _ProductFormDialogState extends State<ProductFormDialog> {
+  final _nameCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  int? _categoryId;
+  XFile? _image;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.product != null) {
+      final p = widget.product!;
+      _nameCtrl.text = p.name;
+      _descCtrl.text = p.description;
+      _priceCtrl.text = p.price.toString();
+      _categoryId =
+          Provider.of<CategoryProvider>(context, listen: false)
+              .categories
+              .firstWhere((c) => c.name == p.categoryName)
+              .id;
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    setState(() => _image = image);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.product == null ? 'Add Product' : 'Edit Product'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Image Preview
+            if (_image != null)
+              Image.file(File(_image!.path), height: 100, fit: BoxFit.cover)
+            else if (widget.product?.imageUrl.isNotEmpty == true)
+              CachedNetworkImage(
+                imageUrl:
+                    '${ApiConfig.imageBaseUrl}/${widget.product!.imageUrl}',
+                height: 100,
+                fit: BoxFit.cover,
+              ),
+            TextButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.image),
+              label: const Text('Pick Image'),
+            ),
+            // Form Fields
+            TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(labelText: 'Name')),
+            TextField(
+                controller: _descCtrl,
+                decoration: const InputDecoration(labelText: 'Description')),
+            TextField(
+              controller: _priceCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Price'),
+            ),
+            Consumer<CategoryProvider>(
+              builder: (context, catProvider, child) =>
+                  DropdownButtonFormField<int>(
+                value: _categoryId,
+                hint: const Text('Category'),
+                items: catProvider.categories
+                    .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                    .toList(),
+                onChanged: (v) => setState(() => _categoryId = v),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final name = _nameCtrl.text;
+            final desc = _descCtrl.text;
+            final price = double.tryParse(_priceCtrl.text) ?? 0.0;
+
+            if (widget.product == null) {
+              if (_categoryId != null) {
+                widget.provider
+                    .createProduct(name, desc, price, _categoryId!, _image);
+              }
+            } else {
+              widget.provider
+                  .updateProduct(widget.product!.id, name, desc, price, _image);
+            }
+            Navigator.pop(context);
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

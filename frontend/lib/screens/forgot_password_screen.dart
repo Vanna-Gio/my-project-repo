@@ -1,48 +1,89 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../services/api_config.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
-class ForgotPasswordScreen extends StatefulWidget {
-  @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
-}
-
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final emailCtrl = TextEditingController();
-  String? message;
-
-  void sendOtp() async {
-    final res = await http.post(
-      Uri.parse('${ApiConfig.baseUrl}/auth/forgot-password'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': emailCtrl.text}),
-    );
-
-    setState(() {
-      message = jsonDecode(res.body)['message'];
-    });
-  }
+class ForgotPasswordScreen extends StatelessWidget {
+  final _emailController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    Future<void> sendOtp() async {
+      final success = await authProvider.sendOtp(_emailController.text);
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('OTP sent to your email')),
+        );
+      }
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Forgot Password')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: emailCtrl,
-              decoration: const InputDecoration(labelText: 'Email'),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: sendOtp,
-              child: const Text('Send OTP'),
-            ),
-            if (message != null) Text(message!),
-          ],
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Forgot Password',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter your email to receive OTP',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 32),
+
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              if (authProvider.error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  authProvider.error!,
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: authProvider.loading ? null : sendOtp,
+                  child: authProvider.loading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Send OTP'),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Login'),
+              ),
+            ],
+          ),
         ),
       ),
     );
